@@ -1,6 +1,7 @@
 # Copyright (c) ClusterHQ Ltd. See LICENSE for details.
 
 import collections
+import pandas
 
 
 SUCCESS = u'SUCCESS'
@@ -20,3 +21,23 @@ def get_build_result(build):
 
 def summarize_build_results(builds):
     return collections.Counter(map(get_build_result, builds))
+
+
+def _flatten_build(build):
+    for sub_build in build['subBuilds']:
+        yield {
+            'number': build['number'],
+            'sub_number': sub_build['buildNumber'],
+            'job': sub_build['jobName'],
+            'result': sub_build['result'],
+        }
+
+
+def _flatten_builds(builds):
+    for build in builds:
+        for thing in _flatten_build(build):
+            yield thing
+
+
+def make_data_frame(builds):
+    return pandas.DataFrame(_flatten_builds(builds))
