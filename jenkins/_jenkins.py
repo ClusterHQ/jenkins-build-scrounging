@@ -41,3 +41,10 @@ def _flatten_builds(builds):
 
 def make_data_frame(builds):
     return pandas.DataFrame(_flatten_builds(builds))
+
+
+def get_top_failing_jobs(build_data):
+    failing_jobs = build_data[build_data['result'] == FAILURE]
+    top_failing_jobs = failing_jobs.groupby('job').size()
+    top_failing_jobs.sort(ascending=False)
+    return top_failing_jobs
