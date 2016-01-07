@@ -17,12 +17,13 @@ from jenkins._jenkins import (
 
 
 def save_log(log, url):
-    if log is not None:
-        dir = child_of(BASE_DIR.child('logs'), url)
-        if not dir.exists():
-            dir.makedirs()
-        f = dir.child('consoleText')
-        f.setContent(log)
+    if log is None:
+        return
+    dir = child_of(BASE_DIR.child('logs'), url)
+    if not dir.exists():
+        dir.makedirs()
+    f = dir.child('consoleText')
+    f.setContent(log)
 
 
 def save_test_report(data, url):
