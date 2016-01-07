@@ -18,7 +18,6 @@ from twisted.internet import defer
 from twisted.python.filepath import FilePath
 
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
-MAX_CONCURRENT_REQUESTS = 5
 
 PASSWORD_ENV_VAR = 'JENKINS_PASSWORD'
 

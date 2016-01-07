@@ -11,9 +11,11 @@ from twisted.internet.task import react
 
 from jenkins._jenkins import (
     jenkins_json_get, make_data_frame, get_console_text,
-    MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
-    child_of, get_test_report,
+    FAILURE, BASE_DIR, child_of, get_test_report,
 )
+
+
+MAX_CONCURRENT_REQUESTS = 10
 
 
 def save_log(log, url):
@@ -27,21 +29,26 @@ def save_log(log, url):
 
 
 def save_test_report(data, url):
-    if data is not None:
-        dir = child_of(BASE_DIR.child('logs'), url)
-        if not dir.exists():
-            dir.makedirs()
-        f = dir.child('testReport')
-        f.setContent(data)
+    # XXX: Duplication w/ save_log
+    if data is None:
+        return
+    # XXX: Shared knowledge of path structure
+    dir = child_of(BASE_DIR.child('logs'), url)
+    if not dir.exists():
+        dir.makedirs()
+    f = dir.child('testReport')
+    f.setContent(data)
 
 
 def fetch_failure_data(sem, url):
-    d = sem.run(get_console_text, url)
-    d.addCallback(lambda x: print(url) or x)
-    d.addCallback(save_log, url)
-    d.addCallback(lambda ignored: get_test_report(url))
-    d.addCallback(save_test_report, url)
-    return d
+    console = sem.run(get_console_text, url)
+    console.addCallback(lambda x: print(url) or x)
+    console.addCallback(save_log, url)
+
+    test = sem.run(get_test_report, url)
+    test.addCallback(save_test_report, url)
+
+    return defer.gatherResults([console, test])
 
 
 def _get_failure_urls(api_json_data):
