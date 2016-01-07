@@ -104,54 +104,67 @@ def get_console_text(job_url):
     return jenkins_get(job_url + '/consoleText').addCallback(content_for_200)
 
 
-# XXX: Use t.p.constants
-UNKNOWN = 0
-NULLPOINTEREXCEPTION = 1
-ARGPARSE130 = 2
-TIMEOUT = 3
-TESTTOOLS182 = 4
-SLAVEOFFLINE = 5
-DOCKER500 = 6
-REMOVEOBSERVER = 7
-MISSINGLOG = 8
-GITCLEAN = 9
-
-DESCRIPTIONS = {
-    UNKNOWN: "Unknown",
-    NULLPOINTEREXCEPTION: "[FLOC-3725] NullPointerException",
-    ARGPARSE130: "[FLOC-?] PyPI down",
-    TIMEOUT: "[FLOC-?] Build timeout",
-    TESTTOOLS182: "[FLOC-?] testtools==1.8.2chq1 unavailable",
-    SLAVEOFFLINE: "[FLOC-?] Slave went offline during the build",
-    DOCKER500: "[FLOC-3077] docker.errors.APIError: 500 Server Error",
-    REMOVEOBSERVER: "[FLOC-3681(fixed)] removeObserver on observer not in list",
-    MISSINGLOG: "Missing log",
-    GITCLEAN: "[FLOC-?] FATAL: Command 'git clean -fdx' returned status code 1",
-}
+def get_test_report(job_url):
+    def content_for_200(resp):
+        if resp.code == 200:
+            return resp.content()
+        return defer.succeed(None)
+    return jenkins_get(job_url + '/testReport/api/json').addCallback(content_for_200)
 
 
-def classify_build_log(log):
+def classify_build_log(log, path):
     if 'NullPointerException' in log:
-        return DESCRIPTIONS[NULLPOINTEREXCEPTION]
-    if 'No matching distribution found for argparse==1.3.0' in log:
-        return DESCRIPTIONS[ARGPARSE130]
+        return "[FLOC-3725] NullPointerException"
+    if 'No matching distribution found for argparse==1.3.0' in log or 'pkg_resources.DistributionNotFound: The \'docutils>=0.10\'' in log:
+        return "[FLOC-?] PyPI down"
     if 'Build timed out' in log:
-        return DESCRIPTIONS[TIMEOUT]
+        return "[FLOC-?] Build timeout"
     if 'No matching distribution found for testtools==1.8.2chq1' in log:
-        return DESCRIPTIONS[TESTTOOLS182]
+        return "[FLOC-?(fixed)] testtools==1.8.2chq1 unavailable"
     if 'Slave went offline during the build' in log:
-        return DESCRIPTIONS[SLAVEOFFLINE]
-    if 'error: flocker.node.functional.test_docker.NamespacedDockerClientTests.test_pull_image_if_necessary' in log and 'docker.errors.APIError: 500 Server Error: Internal Server Error ("Unknown device' in log:
-        return DESCRIPTIONS[DOCKER500]
+        return "[FLOC-?] Slave went offline during the build"
     if 'stderr:ValueError: list.remove(x): x not in list' in log:
-        return DESCRIPTIONS[REMOVEOBSERVER]
+        return "[FLOC-3681(fixed)] removeObserver on observer not in list"
     if 'FATAL: Command "git clean -fdx" returned status code 1:' in log:
-        return DESCRIPTIONS[GITCLEAN]
+        return "[FLOC-?] FATAL: Command 'git clean -fdx' returned status code 1"
+    if 'hudson.remoting.RequestAbortedException' in log or 'org.jenkinsci.lib.envinject.EnvInjectException' in log or 'java.lang.IllegalStateException' in log:
+        return "[FLOC-?] Jenkins slave communication failure"
+    if 'run_sphinx' in path.path and ' broken ' in log:
+        return "[FLOC-?] broken link in docs"
+    if 'Connection to 127.0.0.1 closed by remote host.' in log:
+        return "[FLOC-?] virtualbox failure"
+    if 'acceptance' in path.path and 'FAILED (' in log:
+        return "Failed Test"
+    if 'E: Some index files failed to download.' in log:
+        return "[FLOC-?] apt download failure"
+    if 'FLOCKER_FUNCTIONAL_TEST_AWS_AVAILABILITY_ZONE=\nBuild step \'Execute shell\' marked build as failure' in log:
+        return "[FLOC-?] failed to get availability zone info"
+    if 'ERROR:   lint: commands failed' in log:
+        return "Lint failures"
+    if 'The box failed to unpackage properly.' in log:
+        return "[FLOC-?] failure download virtualbox box"
+    if 'Cannot connect to the Docker daemon. Is the docker daemon running on this host?' in log:
+        return "[FLOC-?] docker daemon not running"
+    if 'boto.exception.BotoServerError: BotoServerError: 503 Service Unavailable' in log and 'RequestLimitExceeded' in log:
+        return "[FLOC-?] RequestLimitExceeded"
+    if 'LoopExceeded' in log and 'create_node' in log and 'rackspace' in log:
+        return "[FLOC-?] rackspace node failed to start in time"
+    if 'gpg: keyserver receive failed: keyserver error' in log:
+        return "[FLOC-?] failed to get key from keyserver"
+    if 'gpgkeys: key 58118E89F3A912897C070ADBF76221572C52609D not found on keyserver' in log:
+        return "[FLOC-?] failed to find key on keyserver"
+
+    # XXX: overly hacky and broad. Not caught by either the junit processing
+    # check due to FLOC-3817, or by the trial failure message check because it is showing
+    # the subunit
+    if '\nerror: flocker.' in log:
+        return "Failed Test"
     print "====="
     print "Unknown failure reason:"
-    print "\n".join(log.splitlines()[-150:])
+    print path.path
+    print "\n".join(log.splitlines())
     print ""
-    return DESCRIPTIONS[UNKNOWN]
+    return "Unknown"
 
 
 def print_summary_results(builds):
@@ -180,12 +193,17 @@ def print_common_failure_reasons(build_data):
 
     classifications = []
     for url in individual_failures['url']:
-        path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
+        path = child_of(BASE_DIR.child('logs'), url).child('testReport')
         if path.exists():
             with path.open() as f:
-                classifications.append(classify_build_log(f.read()))
+                classifications.append("Failed Test")
         else:
-            classifications.append(DESCRIPTIONS[MISSINGLOG])
+            path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
+            if path.exists():
+                with path.open() as f:
+                    classifications.append(classify_build_log(f.read(), path))
+            else:
+                classifications.append("Missing log")
 
     individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
     print individual_failures.groupby('classification').size().sort_values(ascending=False)

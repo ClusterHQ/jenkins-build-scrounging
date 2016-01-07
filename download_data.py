@@ -11,7 +11,7 @@ from twisted.internet.task import react
 
 from jenkins._jenkins import (
     jenkins_json_get, make_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
-    child_of,
+    child_of, get_test_report,
 )
 
 
@@ -24,10 +24,21 @@ def save_log(log, url):
         f.setContent(log)
 
 
-def fetch_console_text(sem, url):
+def save_test_report(data, url):
+    if data is not None:
+        dir = child_of(BASE_DIR.child('logs'), url)
+        if not dir.exists():
+            dir.makedirs()
+        f = dir.child('testReport')
+        f.setContent(data)
+
+
+def fetch_failure_data(sem, url):
     d = sem.run(get_console_text, url)
     d.addCallback(lambda x: print(url) or x)
     d.addCallback(save_log, url)
+    d.addCallback(lambda x: get_test_report(url))
+    d.addCallback(save_test_report, url)
     return d
 
 
@@ -47,7 +58,7 @@ def main(reactor):
         individual_failures = build_data[build_data['result'] == FAILURE]
 
         sem = defer.DeferredSemaphore(MAX_CONCURRENT_REQUESTS)
-        deferreds = map(partial(fetch_console_text, sem), individual_failures['url'])
+        deferreds = map(partial(fetch_failure_data, sem), individual_failures['url'])
         return defer.DeferredList(deferreds)
 
     d.addCallback(download_failed_logs)
