@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 
+import datetime
 from functools import partial
 import json
 
@@ -48,7 +49,8 @@ def main(reactor):
     base_path = 'job/ClusterHQ-flocker/job/master/job/__main_multijob/'
     d = jenkins_json_get(base_path + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
     def write_main_data(data):
-        json.dump(data, BASE_DIR.child('api.json').open('wb'))
+        filename = 'api.' + datetime.datetime.utcnow().isoformat() + '.json'
+        json.dump(data, BASE_DIR.child(filename).open('wb'))
         return data
     d.addCallback(write_main_data)
 
