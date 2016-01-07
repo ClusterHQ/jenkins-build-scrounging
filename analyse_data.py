@@ -14,7 +14,10 @@ from jenkins._jenkins import (
 
 
 def load_build_data():
-    api_data = BASE_DIR.child('api.json')
+    info_files = BASE_DIR.globChildren('api.*.json')
+    assert info_files, "Haven't downloaded any data"
+    info_files.sort(key=lambda x: x.path)
+    api_data = info_files[-1]
     with api_data.open() as f:
         return json.load(f)['builds']
 
