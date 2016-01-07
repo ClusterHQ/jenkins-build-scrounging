@@ -4,7 +4,7 @@ Analyse Jenkins Failures
 Bootstrap
 ---------
 
-    make boostrap
+    make bootstrap
     . env/bin/activate
 
 Download
