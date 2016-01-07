@@ -1,7 +1,6 @@
 # Copyright (c) ClusterHQ Ltd. See LICENSE for details.
 
 import collections
-from itertools import chain
 import json
 import os
 import pandas
@@ -21,20 +20,20 @@ from twisted.python.filepath import FilePath
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
 MAX_CONCURRENT_REQUESTS = 5
 
-COOKIE_ENV_VAR = 'JENKINS_AUTH_COOKIE'
+PASSWORD_ENV_VAR = 'JENKINS_PASSWORD'
 
 BASE_DIR = FilePath('data/')
 
 
 def jenkins_get(path):
-    cookie = os.environ.get(COOKIE_ENV_VAR, None)
-    if cookie is None:
+    password = os.environ.get(PASSWORD_ENV_VAR, None)
+    if password is None:
         raise AssertionError(
-            "Please specify your jenkins JSESSIONID cookie in the "
-            "{} env var.".format(COOKIE_ENV_VAR)
+            "Please specify the jenkins admin password the "
+            "{} env var.".format(PASSWORD_ENV_VAR)
         )
-    cookies = {'JSESSIONID.f304e28f': cookie}
-    return treq.get(BASE_URL + path, cookies=cookies)
+    user = os.environ.get('JENKINS_USER', 'admin')
+    return treq.get(BASE_URL + path, auth=(user, password))
 
 
 class RequestFailed(Exception):

@@ -11,17 +11,11 @@ Download
 --------
 
 First you have to download the data. This will pull down all data for the last 100 builds of
-master.
+master. You need to specify your user and password (or API token) in environment
+variables.
 
-You will need the jenkins cookie for it to be able to download the data. Open your browser
-and log in to http://ci-live.clusterhq.com:8080/. Then browse your cookies and find your
-JSESSIONID cookie for that site. Copy the value and use it to run the script:
 
-   JENKINS_AUTH_COOKIE=YOURCOOKIEHERE python download_data.py
-
-(This uses JSESSIONID.f304e28f, I don't know if that is the same for everyone. If not
-then hack jenkins/_jenkins.py and change the name, and let me know so I can parameterise
-it.)
+   JENKINS_USER=admin JENKINS_PASSWORD=YOURPASSWORD python download_data.py
 
 This will think for a while and suck down all the data needed to analyse the failures.
 
