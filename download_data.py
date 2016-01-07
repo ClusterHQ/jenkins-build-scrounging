@@ -8,20 +8,11 @@ import json
 
 from twisted.internet import defer
 from twisted.internet.task import react
-from twisted.python.filepath import FilePath
 
-from jenkins._jenkins import jenkins_json_get, make_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE
-
-
-BASE_DIR = FilePath('data/')
-
-
-def child_of(file_path, url_path):
-    """Return a descendant of file_path."""
-    result = file_path
-    for segment in url_path.split('/'):
-        result = result.child(segment)
-    return result
+from jenkins._jenkins import (
+    jenkins_json_get, make_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
+    child_of,
+)
 
 
 def save_log(log, url):

@@ -11,11 +11,14 @@ FAILURE = u'FAILURE'
 
 import treq
 from twisted.internet import defer
+from twisted.python.filepath import FilePath
 
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
 MAX_CONCURRENT_REQUESTS = 5
 
 COOKIE_ENV_VAR = 'JENKINS_AUTH_COOKIE'
+
+BASE_DIR = FilePath('data/')
 
 
 def jenkins_get(path):
@@ -48,10 +51,6 @@ def jenkins_json_get(path):
 
 def extract_builds(resp):
     return resp['builds']
-
-#d = jenkins_json_get(BASE_PATH + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
-#d.addCallback(extract_builds)
-
 
 def get_build_result(build):
     """
@@ -158,51 +157,35 @@ def classify_build_log(log):
 def print_summary_results(builds):
     print "Top-level build results:"
     print summarize_build_results(builds)
-    return builds
-
-#d.addCallback(print_summary_results)
 
 
-def print_top_failing_jobs(builds):
+def print_top_failing_jobs(build_data):
     print ""
     print ""
     print "Jobs with the most failures"
-    build_data = make_data_frame(builds)
     failing_jobs = get_top_failing_jobs(build_data)
     print failing_jobs.head(20)
 
-    return build_data
 
-#d.addCallback(print_top_failing_jobs)
+def child_of(file_path, url_path):
+    """Return a descendant of file_path."""
+    result = file_path
+    for segment in url_path.split('/'):
+        result = result.child(segment)
+    return result
 
 
 def print_common_failure_reasons(build_data):
     individual_failures = build_data[build_data['result'] == FAILURE]
 
-    deferreds = []
-    sem = defer.DeferredSemaphore(MAX_CONCURRENT_REQUESTS)
+    classifications = []
     for url in individual_failures['url']:
-        d = sem.run(get_console_text, url)
-        deferreds.append(d)
+        path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
+        if path.exists():
+            with path.open() as f:
+                classifications.append(classify_build_log(f.read()))
+        else:
+            classifications.append(DESCRIPTIONS[MISSINGLOG])
 
-    dl = defer.DeferredList(deferreds)
-
-    def classify_results(results):
-        classifications = []
-        for success, log in results:
-            if success and log is not None:
-                classifications.append(classify_build_log(log))
-            else:
-                classifications.append(DESCRIPTIONS[MISSINGLOG])
-        return classifications
-
-    def print_classification(classifications):
-        individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
-        print individual_failures.groupby('classification').size().sort_values(ascending=False)
-
-    dl.addCallback(classify_results)
-    dl.addCallback(print_classification)
-    return dl
-
-
-#d.addCallback(print_common_failure_reasons)
+    individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
+    print individual_failures.groupby('classification').size().sort_values(ascending=False)
