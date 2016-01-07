@@ -10,10 +10,8 @@ FAILURE = u'FAILURE'
 
 import treq
 from twisted.internet import defer
-from twisted.internet import reactor
 
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
-BASE_PATH = 'job/ClusterHQ-flocker/job/master/job/__main_multijob/'
 MAX_CONCURRENT_REQUESTS = 5
 
 
@@ -42,8 +40,8 @@ def jenkins_json_get(path):
 def extract_builds(resp):
     return resp['builds']
 
-d = jenkins_json_get(BASE_PATH + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
-d.addCallback(extract_builds)
+#d = jenkins_json_get(BASE_PATH + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
+#d.addCallback(extract_builds)
 
 
 def get_build_result(build):
@@ -153,7 +151,7 @@ def print_summary_results(builds):
     print summarize_build_results(builds)
     return builds
 
-d.addCallback(print_summary_results)
+#d.addCallback(print_summary_results)
 
 
 def print_top_failing_jobs(builds):
@@ -166,7 +164,7 @@ def print_top_failing_jobs(builds):
 
     return build_data
 
-d.addCallback(print_top_failing_jobs)
+#d.addCallback(print_top_failing_jobs)
 
 
 def print_common_failure_reasons(build_data):
@@ -198,17 +196,4 @@ def print_common_failure_reasons(build_data):
     return dl
 
 
-d.addCallback(print_common_failure_reasons)
-
-def print_err(failure):
-    print failure
-    return failure
-
-d.addErrback(print_err)
-
-def cbShutdown(ignored):
-        reactor.stop()
-
-d.addBoth(cbShutdown)
-
-reactor.run()
+#d.addCallback(print_common_failure_reasons)
