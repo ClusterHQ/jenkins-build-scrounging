@@ -1,12 +1,17 @@
 # Copyright (c) ClusterHQ Ltd. See LICENSE for details.
 
 import collections
+from itertools import chain
+import json
 import os
 import pandas
 
 
 SUCCESS = u'SUCCESS'
 FAILURE = u'FAILURE'
+PASSED = u'PASSED'
+SKIPPED = u'SKIPPED'
+FIXED = u'FIXED'
 
 
 import treq
@@ -195,8 +200,7 @@ def print_common_failure_reasons(build_data):
     for url in individual_failures['url']:
         path = child_of(BASE_DIR.child('logs'), url).child('testReport')
         if path.exists():
-            with path.open() as f:
-                classifications.append("Failed Test")
+            classifications.append("Failed Test")
         else:
             path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
             if path.exists():
@@ -206,4 +210,44 @@ def print_common_failure_reasons(build_data):
                 classifications.append("Missing log")
 
     individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
+    print ""
+    print ""
+    print "Classification of failures"
     print individual_failures.groupby('classification').size().sort_values(ascending=False)
+
+
+def test_case_name(case):
+    return case['className'] + '.' + case['name']
+
+
+def test_case_failed(case):
+    return case['status'] not in (SKIPPED, PASSED, FIXED)
+
+
+def list_tests(test_report):
+    for suite in test_report['suites']:
+        for case in suite['cases']:
+            yield case
+
+
+def get_failing_tests(test_report):
+    return list(filter(test_case_failed, list_tests(test_report)))
+
+
+def print_commonly_failing_tests(build_data):
+    individual_failures = build_data[build_data['result'] == FAILURE]
+
+    failing_cases = []
+    for url in individual_failures['url']:
+        path = child_of(BASE_DIR.child('logs'), url).child('testReport')
+        if path.exists():
+            with path.open() as f:
+                tests = json.load(f)
+                failing_cases.extend(get_failing_tests(tests))
+
+    failing_frame = pandas.DataFrame(failing_cases)
+    failing_frame['test_case_name'] = failing_frame['className'] + '.' + failing_frame['name']
+    print ""
+    print ""
+    print "Tests with the most failures"
+    print failing_frame.groupby('test_case_name').size().sort_values(ascending=False).head(20)

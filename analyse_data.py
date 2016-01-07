@@ -7,6 +7,7 @@ from jenkins._jenkins import (
     BASE_DIR,
     make_data_frame,
     print_common_failure_reasons,
+    print_commonly_failing_tests,
     print_summary_results,
     print_top_failing_jobs,
 )
@@ -24,6 +25,7 @@ def main():
     build_data = make_data_frame(builds)
     print_top_failing_jobs(build_data)
     print_common_failure_reasons(build_data)
+    print_commonly_failing_tests(build_data)
 
 
 if __name__ == '__main__':
