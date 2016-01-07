@@ -1,6 +1,7 @@
 # Copyright (c) ClusterHQ Ltd. See LICENSE for details.
 
 import collections
+import os
 import pandas
 
 
@@ -14,9 +15,17 @@ from twisted.internet import defer
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
 MAX_CONCURRENT_REQUESTS = 5
 
+COOKIE_ENV_VAR = 'JENKINS_AUTH_COOKIE'
+
 
 def jenkins_get(path):
-    cookies = {'JSESSIONID.f304e28f': 'YOURCOOKIEHERE'}
+    cookie = os.environ.get(COOKIE_ENV_VAR, None)
+    if cookie is None:
+        raise AssertionError(
+            "Please specify your jenkins JSESSIONID cookie in the "
+            "{} env var.".format(COOKIE_ENV_VAR)
+        )
+    cookies = {'JSESSIONID.f304e28f': cookie}
     return treq.get(BASE_URL + path, cookies=cookies)
 
 

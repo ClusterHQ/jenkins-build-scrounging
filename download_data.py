@@ -29,7 +29,6 @@ def save_log(log, url):
         dir = child_of(BASE_DIR.child('logs'), url)
         if not dir.exists():
             dir.makedirs()
-        print(dir)
         f = dir.child('consoleText')
         f.setContent(log)
 
