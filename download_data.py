@@ -39,9 +39,19 @@ def fetch_failure_data(sem, url):
     d = sem.run(get_console_text, url)
     d.addCallback(lambda x: print(url) or x)
     d.addCallback(save_log, url)
-    d.addCallback(lambda x: get_test_report(url))
+    d.addCallback(lambda ignored: get_test_report(url))
     d.addCallback(save_test_report, url)
     return d
+
+
+def _get_failure_urls(api_json_data):
+    """
+    Given Jenkins data for a build, return the URLs of the failed sub-builds.
+    """
+    builds = api_json_data['builds']
+    build_data = make_data_frame(builds)
+    individual_failures = build_data[build_data['result'] == FAILURE]
+    return individual_failures['url']
 
 
 def main(reactor):
@@ -57,14 +67,11 @@ def main(reactor):
         return data
     d.addCallback(write_main_data)
 
-    def download_failed_logs(data):
-        builds = data['builds']
-        build_data = make_data_frame(builds)
-        individual_failures = build_data[build_data['result'] == FAILURE]
+    d.addCallback(_get_failure_urls)
 
+    def download_failed_logs(urls):
         sem = defer.DeferredSemaphore(MAX_CONCURRENT_REQUESTS)
-        deferreds = map(
-            partial(fetch_failure_data, sem), individual_failures['url'])
+        deferreds = map(partial(fetch_failure_data, sem), urls)
         return defer.DeferredList(deferreds)
 
     d.addCallback(download_failed_logs)
