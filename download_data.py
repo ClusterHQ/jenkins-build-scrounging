@@ -10,7 +10,8 @@ from twisted.internet import defer
 from twisted.internet.task import react
 
 from jenkins._jenkins import (
-    jenkins_json_get, make_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
+    jenkins_json_get, make_data_frame, get_console_text,
+    MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
     child_of, get_test_report,
 )
 
@@ -46,7 +47,10 @@ def main(reactor):
     if not BASE_DIR.exists():
         BASE_DIR.makedirs()
     base_path = 'job/ClusterHQ-flocker/job/master/job/__main_multijob/'
-    d = jenkins_json_get(base_path + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
+    d = jenkins_json_get(
+        base_path + 'api/json?tree=builds[result,number,subBuilds'
+        '[result,buildNumber,jobName,url]]')
+
     def write_main_data(data):
         json.dump(data, BASE_DIR.child('api.json').open('wb'))
         return data
@@ -58,11 +62,11 @@ def main(reactor):
         individual_failures = build_data[build_data['result'] == FAILURE]
 
         sem = defer.DeferredSemaphore(MAX_CONCURRENT_REQUESTS)
-        deferreds = map(partial(fetch_failure_data, sem), individual_failures['url'])
+        deferreds = map(
+            partial(fetch_failure_data, sem), individual_failures['url'])
         return defer.DeferredList(deferreds)
 
     d.addCallback(download_failed_logs)
-
     return d
 
 

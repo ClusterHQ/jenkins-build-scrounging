@@ -56,6 +56,7 @@ def jenkins_json_get(path):
 def extract_builds(resp):
     return resp['builds']
 
+
 def get_build_result(build):
     """
     Aggregate all the results of the sub-builds of a build.
@@ -113,7 +114,8 @@ def get_test_report(job_url):
         if resp.code == 200:
             return resp.content()
         return defer.succeed(None)
-    return jenkins_get(job_url + '/testReport/api/json').addCallback(content_for_200)
+    return jenkins_get(
+        job_url + '/testReport/api/json').addCallback(content_for_200)
 
 
 def classify_build_log(log, path):
@@ -159,8 +161,8 @@ def classify_build_log(log, path):
         return "[FLOC-?] failed to find key on keyserver"
 
     # XXX: overly hacky and broad. Not caught by either the junit processing
-    # check due to FLOC-3817, or by the trial failure message check because it is showing
-    # the subunit
+    # check due to FLOC-3817, or by the trial failure message check because it
+    # is showing the subunit
     if '\nerror: flocker.' in log:
         return "Failed Test"
     print "====="
@@ -208,11 +210,13 @@ def print_common_failure_reasons(build_data):
             else:
                 classifications.append("Missing log")
 
-    individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
+    individual_failures['classification'] = pandas.Series(
+        classifications, index=individual_failures.index)
     print ""
     print ""
     print "Classification of failures"
-    print individual_failures.groupby('classification').size().sort_values(ascending=False)
+    print individual_failures.groupby('classification').size().sort_values(
+        ascending=False)
 
 
 def test_case_name(case):
@@ -245,8 +249,10 @@ def print_commonly_failing_tests(build_data):
                 failing_cases.extend(get_failing_tests(tests))
 
     failing_frame = pandas.DataFrame(failing_cases)
-    failing_frame['test_case_name'] = failing_frame['className'] + '.' + failing_frame['name']
+    failing_frame['test_case_name'] = (
+        failing_frame['className'] + '.' + failing_frame['name'])
     print ""
     print ""
     print "Tests with the most failures"
-    print failing_frame.groupby('test_case_name').size().sort_values(ascending=False).head(20)
+    print failing_frame.groupby('test_case_name').size().sort_values(
+        ascending=False).head(20)
