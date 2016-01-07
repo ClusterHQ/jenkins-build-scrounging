@@ -4,8 +4,8 @@ Analyse Jenkins Failures
 Bootstrap
 ---------
 
-   make boostrap
-   . env/bin/activate
+    make boostrap
+    . env/bin/activate
 
 Download
 --------
@@ -14,8 +14,7 @@ First you have to download the data. This will pull down all data for the last 1
 master. You need to specify your user and password (or API token) in environment
 variables.
 
-
-   JENKINS_USER=admin JENKINS_PASSWORD=YOURPASSWORD python download_data.py
+    JENKINS_USER=admin JENKINS_PASSWORD=YOURPASSWORD python download_data.py
 
 This will think for a while and suck down all the data needed to analyse the failures.
 
@@ -89,4 +88,4 @@ There's also an attempt to categorise the specific failures in to buckets. It co
 use some work.
 
 It may also print some build logs, this would happen if there was a failure that
-it couldn't categorise.
+it couldn't categorize.
