@@ -74,6 +74,25 @@ def summarize_build_results(builds):
     return collections.Counter(map(get_build_result, builds))
 
 
+def summarize_weekly_stats(builds):
+    """
+    Summarize the per-week data
+
+    :param Iterable[dict] builds: An iterable of build
+        data dicts.
+    :return pandas.DataFrameGroupBy: a data frame
+        grouped by week_number, with summary information
+        for each week.
+    """
+    df = make_build_data_frame(builds)
+    return df.groupby('week_number').agg(
+        {'numeric_result': {
+            'test runs': lambda x: x.count(),
+            'success percentage': numpy.mean
+        }}
+    )['numeric_result']
+
+
 def _flatten_build(build):
     for sub_build in build['subBuilds']:
         yield {
@@ -91,7 +110,34 @@ def _flatten_builds(builds):
             yield thing
 
 
-def make_data_frame(builds):
+def make_build_data_frame(builds):
+    """
+    Make a DataFrame from of top-level build information.
+
+    :param Iterable[dict] builds: an iterable of
+        dicts of build information.
+    :return pandas.DataFrame: a DataFrame containing
+        that data augmented with week number
+        and numeric result.
+    """
+    return pandas.DataFrame(builds).assign(
+        week_number=make_week_numbers,
+        numeric_result=make_numeric_results,
+    )
+
+
+def make_subbuild_data_frame(builds):
+    """
+    Make a DataFrame from of sub build information.
+
+    This indexes all builds that are triggered by
+    the top level builds.
+
+    :param Iterable[dict] builds: an iterable of
+        dicts of build information.
+    :return pandas.DataFrame: a DataFrame containing
+        that data.
+    """
     frame = pandas.DataFrame(_flatten_builds(builds))
     frame.set_index(['url'])
     return frame
@@ -229,29 +275,6 @@ def make_week_numbers(builds):
     return builds['timestamp'].map(get_week_number)
 
 
-def print_summary_results(builds):
-    print "Top-level build results:"
-    print summarize_build_results(builds)
-    df = pandas.DataFrame(builds).assign(
-        week_number=make_week_numbers,
-        numeric_result=make_numeric_results,
-    )
-    print df.groupby('week_number').agg(
-        {'numeric_result': {
-            'test runs': lambda x: x.count(),
-            'success percentage': numpy.mean
-        }}
-    )['numeric_result'].head()
-
-
-def print_top_failing_jobs(build_data):
-    print ""
-    print ""
-    print "Jobs with the most failures"
-    failing_jobs = get_top_failing_jobs(build_data)
-    print failing_jobs.head(20)
-
-
 def child_of(file_path, url_path):
     """Return a descendant of file_path."""
     return file_path.preauthChild(url_path)
@@ -290,20 +313,6 @@ def classify(url):
             return "Missing log"
 
 
-def print_common_failure_reasons(build_data):
-    individual_failures = build_data[build_data['result'] == FAILURE]
-
-    classifications = individual_failures['url'].map(classify)
-    individual_failures.insert(3, 'classification', classifications)
-
-    by_classification = individual_failures.groupby('classification')
-
-    print ""
-    print ""
-    print "Classification of failures"
-    print by_classification.size().sort_values(ascending=False)
-
-
 def test_case_name(case):
     return case['className'] + '.' + case['name']
 
@@ -322,7 +331,16 @@ def get_failing_tests(test_report):
     return list(filter(test_case_failed, list_tests(test_report)))
 
 
-def print_commonly_failing_tests(build_data):
+def analyze_failing_tests(build_data):
+    """
+    Given a DataFrame of build data, analyse which
+    individaul tests are failing the builds.
+
+    :param pandas.DataFrame build_data: the build data to
+        analyze.
+    :return pandas.DataFrame: a new DataFrame with
+        information about individual failing tests.
+    """
     individual_failures = build_data[build_data['result'] == FAILURE]
 
     failing_cases = []
@@ -334,12 +352,56 @@ def print_commonly_failing_tests(build_data):
                 failing_cases.extend(get_failing_tests(tests))
 
     failing_frame = pandas.DataFrame(failing_cases)
-    failing_frame = failing_frame.assign(test_case_name=test_case_name)
-
-    by_test_name = failing_frame.groupby('test_case_name')
+    return failing_frame.assign(test_case_name=test_case_name)
 
 
-    print ""
-    print ""
-    print "Tests with the most failures"
-    print by_test_name.size().sort_values(ascending=False).head(20)
+def get_classified_failures(build_data):
+    """
+    Given a DataFrame of build data, guess what caused
+    each failure. Return a DataFrame including a new
+    column: a string that describes the best guess
+    of the cause of that failure.
+
+    :param pandas.DataFrame build_data: a DataFrame with
+        information about jobs.
+    :return pandas.DataFrame: a new DataFrame with a row
+        for each failing build in the input frame, and
+        an additional column describing the failure reason.
+    """
+    individual_failures = build_data[build_data['result'] == FAILURE]
+
+    classifications = individual_failures['url'].map(classify)
+    individual_failures.insert(3, 'classification', classifications)
+    return individual_failures
+
+
+def group_by_classification(failures):
+    """
+    Given a DataFrame of classified failures, group
+    the frame by classification and sort with the
+    most common first.
+
+    :param pandas.DataFrame failures: the DataFrame
+        with classified failures.
+    :return pandas.DataFrameGroupBy: a grouped DataFrame
+        with the most common classifications first and
+        a column with the frequency.
+    """
+    return failures.groupby('classification').size().sort_values(
+        ascending=False)
+
+
+def group_by_test_name(failures):
+    """
+    Given a DataFrame of failing tests group the
+    frame by the test name and sort with the most
+    common first.
+
+    :param pandas.DataFrame failures: the DataFrame
+        with failing tests.
+    :return pandas.DataFrameGroupBy: a grouped DataFrame
+        with the most common failing tests first and
+        a column with the frequency.
+    """
+    return failures.groupby('test_case_name').size().sort_values(
+        ascending=False)
