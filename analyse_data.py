@@ -9,8 +9,8 @@ import json
 import dateutil
 
 
-from jenkins._jenkins import (
-    BASE_DIR,
+from jenkins._common import BASE_DIR
+from jenkins._analysis import (
     analyze_failing_tests,
     get_classified_failures,
     get_top_failing_jobs,
