@@ -57,7 +57,9 @@ def parse_timestamp(s_time):
 
 def main():
     parser = ArgumentParser('analyse_data.py', description="Analyze Jenkins build logs")
-    parser.add_argument('--since', type=parse_timestamp, help="Only consider builds since this date")
+    parser.add_argument(
+        '--since', type=parse_timestamp, help="Only consider builds since this date"
+    )
     opts = parser.parse_args()
     builds = load_build_data(since=opts.since)
     print_summary_results(builds)
