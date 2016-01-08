@@ -47,7 +47,7 @@ def main(reactor):
     if not BASE_DIR.exists():
         BASE_DIR.makedirs()
     base_path = 'job/ClusterHQ-flocker/job/master/job/__main_multijob/'
-    d = jenkins_json_get(base_path + 'api/json?tree=builds[result,number,subBuilds[result,buildNumber,jobName,url]]')
+    d = jenkins_json_get(base_path + 'api/json?tree=builds[result,number,timestamp,subBuilds[result,buildNumber,jobName,url,timestamp]]')
     def write_main_data(data):
         filename = 'api.' + datetime.datetime.utcnow().isoformat() + '.json'
         json.dump(data, BASE_DIR.child(filename).open('wb'))
