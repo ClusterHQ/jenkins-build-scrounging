@@ -186,10 +186,18 @@ def print_top_failing_jobs(build_data):
 
 def child_of(file_path, url_path):
     """Return a descendant of file_path."""
-    result = file_path
-    for segment in url_path.split('/'):
-        result = result.child(segment)
-    return result
+    return file_path.preauthChild(url_path)
+
+
+def get_log_path(url):
+    """
+    Get the directory containing the info files for url.
+
+    :param str url: a partial url that identifies a build.
+    :return FilePath: the file path corresponding to a directory that
+        may have the log files for that build.
+    """
+    return child_of(BASE_DIR.child('logs'), url)
 
 
 def classify(url):
@@ -202,11 +210,11 @@ def classify(url):
     :param str url: a url of a build.
     :return str: the classification.
     """
-    path = child_of(BASE_DIR.child('logs'), url).child('testReport')
+    path = get_log_path(url).child('testReport')
     if path.exists():
         return "Failed Test"
     else:
-        path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
+        path = get_log_path(url).child('consoleText')
         if path.exists():
             with path.open() as f:
                 return classify_build_log(f.read(), path)
@@ -217,17 +225,15 @@ def classify(url):
 def print_common_failure_reasons(build_data):
     individual_failures = build_data[build_data['result'] == FAILURE]
 
-    classifications = map(classify, individual_failures['url'])
-    individual_failures.insert(
-        3, 'classification',
-        pandas.Series(classifications, index=individual_failures.index))
+    classifications = individual_failures['url'].map(classify)
+    individual_failures.insert(3, 'classification', classifications)
 
-    by_clasification = individual_failures.groupby('classification')
+    by_classification = individual_failures.groupby('classification')
 
     print ""
     print ""
     print "Classification of failures"
-    print by_clasification.size().sort_values(ascending=False)
+    print by_classification.size().sort_values(ascending=False)
 
 
 def test_case_name(case):
