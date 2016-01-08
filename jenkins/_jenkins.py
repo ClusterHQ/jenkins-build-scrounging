@@ -186,33 +186,54 @@ def print_top_failing_jobs(build_data):
 
 def child_of(file_path, url_path):
     """Return a descendant of file_path."""
-    result = file_path
-    for segment in url_path.split('/'):
-        result = result.child(segment)
-    return result
+    return file_path.preauthChild(url_path)
+
+
+def get_log_path(url):
+    """
+    Get the directory containing the info files for url.
+
+    :param str url: a partial url that identifies a build.
+    :return FilePath: the file path corresponding to a directory that
+        may have the log files for that build.
+    """
+    return child_of(BASE_DIR.child('logs'), url)
+
+
+def classify(url):
+    """
+    Classify the failure of a url.
+
+    Considers all the information about the url, such as testReport
+    consoleText and tries to provide the best classification.
+
+    :param str url: a url of a build.
+    :return str: the classification.
+    """
+    path = get_log_path(url).child('testReport')
+    if path.exists():
+        return "Failed Test"
+    else:
+        path = get_log_path(url).child('consoleText')
+        if path.exists():
+            with path.open() as f:
+                return classify_build_log(f.read(), path)
+        else:
+            return "Missing log"
 
 
 def print_common_failure_reasons(build_data):
     individual_failures = build_data[build_data['result'] == FAILURE]
 
-    classifications = []
-    for url in individual_failures['url']:
-        path = child_of(BASE_DIR.child('logs'), url).child('testReport')
-        if path.exists():
-            classifications.append("Failed Test")
-        else:
-            path = child_of(BASE_DIR.child('logs'), url).child('consoleText')
-            if path.exists():
-                with path.open() as f:
-                    classifications.append(classify_build_log(f.read(), path))
-            else:
-                classifications.append("Missing log")
+    classifications = individual_failures['url'].map(classify)
+    individual_failures.insert(3, 'classification', classifications)
 
-    individual_failures['classification'] = pandas.Series(classifications, index=individual_failures.index)
+    by_classification = individual_failures.groupby('classification')
+
     print ""
     print ""
     print "Classification of failures"
-    print individual_failures.groupby('classification').size().sort_values(ascending=False)
+    print by_classification.size().sort_values(ascending=False)
 
 
 def test_case_name(case):
@@ -245,8 +266,14 @@ def print_commonly_failing_tests(build_data):
                 failing_cases.extend(get_failing_tests(tests))
 
     failing_frame = pandas.DataFrame(failing_cases)
-    failing_frame['test_case_name'] = failing_frame['className'] + '.' + failing_frame['name']
+    failing_frame['test_case_name'] = (
+        failing_frame['className'] + '.' + failing_frame['name']
+    )
+
+    by_test_name = failing_frame.groupby('test_case_name')
+
+
     print ""
     print ""
     print "Tests with the most failures"
-    print failing_frame.groupby('test_case_name').size().sort_values(ascending=False).head(20)
+    print by_test_name.size().sort_values(ascending=False).head(20)
