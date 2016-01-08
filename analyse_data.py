@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
+from datetime import datetime
 import json
-import time
 
 import dateutil
 
@@ -22,18 +22,25 @@ def builds_since(builds, since):
     Filter a list of builds to only those newer than the
     provided timestamp.
 
-    :param float since: a UNIX timestamp.
+    :param Iterable[dict]: an iterable of dicts of build
+        data.
+    :param datetime since: exclude any build
+        records before this datetime.
+    :return Iterable[dict]: an iterable containing only the
+        records in `builds` that are newer than `since`.
     """
-    # Jenkins return milliseconds since the epoch, not seconds
-    return filter(lambda b: (float(b['timestamp'])/1000) > since, builds)
+    return filter(
+        lambda b: datetime.fromtimestamp(float(b['timestamp'])/1000) > since,
+        builds)
 
 
 def load_build_data(since=None):
     """
     Load the build data.
 
-    :param Optional[float] since: only builds newer than this timestamp
+    :param Optional[datetime] since: only builds newer than this datetime
            will be included if this is provided.
+    :return Iterable[dict]: an iterable of build records.
     """
     info_files = BASE_DIR.globChildren('api.*.json')
     assert info_files, "Haven't downloaded any data"
@@ -46,19 +53,13 @@ def load_build_data(since=None):
         return builds
 
 
-def parse_timestamp(s_time):
-    """Parse a string in to a UNIX timestamp.
-
-    This allows for simple descriptions, e.g. "Jan 1"
-    using dateutil.
-    """
-    return time.mktime(dateutil.parser.parse(s_time).timetuple())
-
-
 def main():
-    parser = ArgumentParser('analyse_data.py', description="Analyze Jenkins build logs")
+    parser = ArgumentParser(
+        'analyse_data.py', description="Analyze Jenkins build logs"
+    )
     parser.add_argument(
-        '--since', type=parse_timestamp, help="Only consider builds since this date"
+        '--since', type=dateutil.parser.parse,
+        help="Only consider builds since this date"
     )
     opts = parser.parse_args()
     builds = load_build_data(since=opts.since)
