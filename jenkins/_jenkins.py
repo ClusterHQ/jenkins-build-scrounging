@@ -7,7 +7,6 @@ from twisted.internet import defer
 
 
 BASE_URL = 'http://ci-live.clusterhq.com:8080/'
-MAX_CONCURRENT_REQUESTS = 5
 
 PASSWORD_ENV_VAR = 'JENKINS_PASSWORD'
 
@@ -53,4 +52,5 @@ def get_test_report(job_url):
         if resp.code == 200:
             return resp.content()
         return defer.succeed(None)
-    return jenkins_get(job_url + '/testReport/api/json').addCallback(content_for_200)
+    return jenkins_get(
+        job_url + '/testReport/api/json').addCallback(content_for_200)
