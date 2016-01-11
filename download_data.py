@@ -10,9 +10,11 @@ import json
 from twisted.internet import defer
 from twisted.internet.task import react
 
+from jenkins._analysis import make_subbuild_data_frame
+from jenkins._common import BASE_DIR, FAILURE, get_log_path
 from jenkins._jenkins import (
-    jenkins_json_get, make_subbuild_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
-    get_log_path, get_test_report,
+    jenkins_json_get, get_console_text, MAX_CONCURRENT_REQUESTS,
+    get_test_report,
 )
 
 
