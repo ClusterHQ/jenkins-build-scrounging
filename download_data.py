@@ -3,15 +3,17 @@
 
 from __future__ import print_function
 
+import datetime
 from functools import partial
 import json
 
 from twisted.internet import defer
 from twisted.internet.task import react
 
+from jenkins._analysis import make_subbuild_data_frame
+from jenkins._common import BASE_DIR, FAILURE, get_log_path
 from jenkins._jenkins import (
-    jenkins_json_get, make_data_frame, get_console_text,
-    FAILURE, BASE_DIR, child_of, get_test_report,
+    jenkins_json_get, get_console_text, get_test_report,
 )
 
 
@@ -21,7 +23,7 @@ MAX_CONCURRENT_REQUESTS = 10
 def save_log(log, url):
     if log is None:
         return
-    dir = child_of(BASE_DIR.child('logs'), url)
+    dir = get_log_path(url)
     if not dir.exists():
         dir.makedirs()
     f = dir.child('consoleText')
@@ -32,8 +34,7 @@ def save_test_report(data, url):
     # XXX: Duplication w/ save_log
     if data is None:
         return
-    # XXX: Shared knowledge of path structure
-    dir = child_of(BASE_DIR.child('logs'), url)
+    dir = get_log_path(url)
     if not dir.exists():
         dir.makedirs()
     f = dir.child('testReport')
@@ -56,7 +57,7 @@ def _get_failure_urls(api_json_data):
     Given Jenkins data for a build, return the URLs of the failed sub-builds.
     """
     builds = api_json_data['builds']
-    build_data = make_data_frame(builds)
+    build_data = make_subbuild_data_frame(builds)
     individual_failures = build_data[build_data['result'] == FAILURE]
     return individual_failures['url']
 
@@ -66,11 +67,12 @@ def main(reactor):
         BASE_DIR.makedirs()
     base_path = 'job/ClusterHQ-flocker/job/master/job/__main_multijob/'
     d = jenkins_json_get(
-        base_path + 'api/json?tree=builds[result,number,subBuilds'
-        '[result,buildNumber,jobName,url]]')
+        base_path + 'api/json?tree=builds[result,number,timestamp,'
+        'subBuilds[result,buildNumber,jobName,url,timestamp]]')
 
     def write_main_data(data):
-        json.dump(data, BASE_DIR.child('api.json').open('wb'))
+        filename = 'api.' + datetime.datetime.utcnow().isoformat() + '.json'
+        json.dump(data, BASE_DIR.child(filename).open('wb'))
         return data
     d.addCallback(write_main_data)
 
