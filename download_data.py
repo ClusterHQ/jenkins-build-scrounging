@@ -11,14 +11,14 @@ from twisted.internet import defer
 from twisted.internet.task import react
 
 from jenkins._jenkins import (
-    jenkins_json_get, make_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
-    child_of, get_test_report,
+    jenkins_json_get, make_subbuild_data_frame, get_console_text, MAX_CONCURRENT_REQUESTS, FAILURE, BASE_DIR,
+    get_log_path, get_test_report,
 )
 
 
 def save_log(log, url):
     if log is not None:
-        dir = child_of(BASE_DIR.child('logs'), url)
+        dir = get_log_path(url)
         if not dir.exists():
             dir.makedirs()
         f = dir.child('consoleText')
@@ -27,7 +27,7 @@ def save_log(log, url):
 
 def save_test_report(data, url):
     if data is not None:
-        dir = child_of(BASE_DIR.child('logs'), url)
+        dir = get_log_path(url)
         if not dir.exists():
             dir.makedirs()
         f = dir.child('testReport')
@@ -56,7 +56,7 @@ def main(reactor):
 
     def download_failed_logs(data):
         builds = data['builds']
-        build_data = make_data_frame(builds)
+        build_data = make_subbuild_data_frame(builds)
         individual_failures = build_data[build_data['result'] == FAILURE]
 
         sem = defer.DeferredSemaphore(MAX_CONCURRENT_REQUESTS)
