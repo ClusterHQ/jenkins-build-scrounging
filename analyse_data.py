@@ -16,6 +16,7 @@ from jenkins._jenkins import (
     get_top_failing_jobs,
     group_by_classification,
     group_by_test_name,
+    make_build_data_frame,
     make_subbuild_data_frame,
     summarize_build_results,
     summarize_weekly_stats,
@@ -64,7 +65,7 @@ def print_summary_results(builds):
     print("")
     print("")
     print("Success percentage by week")
-    print(summarize_weekly_stats(builds))
+    print(summarize_weekly_stats(make_build_data_frame(builds)))
 
 
 def print_top_failing_jobs(build_data):

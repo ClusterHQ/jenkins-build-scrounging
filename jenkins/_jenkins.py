@@ -56,10 +56,7 @@ def jenkins_json_get(path):
     return jenkins_get(path).addCallback(decode_json)
 
 
-def extract_builds(resp):
-    return resp['builds']
-
-def get_build_result(build):
+def _get_build_result(build):
     """
     Aggregate all the results of the sub-builds of a build.
     """
@@ -71,21 +68,20 @@ def get_build_result(build):
 
 
 def summarize_build_results(builds):
-    return collections.Counter(map(get_build_result, builds))
+    return collections.Counter(map(_get_build_result, builds))
 
 
 def summarize_weekly_stats(builds):
     """
     Summarize the per-week data
 
-    :param Iterable[dict] builds: An iterable of build
-        data dicts.
+    :param pandas.DataFrame builds: a data frame of build
+        result data with timestamps.
     :return pandas.DataFrameGroupBy: a data frame
         grouped by week_number, with summary information
         for each week.
     """
-    df = make_build_data_frame(builds)
-    return df.groupby('week_number').agg(
+    return builds.groupby('week_number').agg(
         {'numeric_result': {
             'test runs': lambda x: x.count(),
             'success percentage': numpy.mean
@@ -115,14 +111,15 @@ def make_build_data_frame(builds):
     Make a DataFrame from of top-level build information.
 
     :param Iterable[dict] builds: an iterable of
-        dicts of build information.
+        dicts of build information as obtained from
+        the Jenkins build history API.
     :return pandas.DataFrame: a DataFrame containing
         that data augmented with week number
         and numeric result.
     """
     return pandas.DataFrame(builds).assign(
-        week_number=make_week_numbers,
-        numeric_result=make_numeric_results,
+        week_number=_make_week_numbers,
+        numeric_result=_make_numeric_results,
     )
 
 
@@ -134,7 +131,8 @@ def make_subbuild_data_frame(builds):
     the top level builds.
 
     :param Iterable[dict] builds: an iterable of
-        dicts of build information.
+        dicts of build information as obtained from
+        the Jenkins build history API.
     :return pandas.DataFrame: a DataFrame containing
         that data.
     """
@@ -165,7 +163,7 @@ def get_test_report(job_url):
     return jenkins_get(job_url + '/testReport/api/json').addCallback(content_for_200)
 
 
-def classify_build_log(log, path):
+def _classify_build_log(log, path):
     if 'NullPointerException' in log:
         return "[FLOC-3725] NullPointerException"
     if 'No matching distribution found for argparse==1.3.0' in log or 'pkg_resources.DistributionNotFound: The \'docutils>=0.10\'' in log:
@@ -220,7 +218,7 @@ def classify_build_log(log, path):
     return "Unknown"
 
 
-def get_week_number(timestamp):
+def _get_week_number(timestamp):
     """
     Return a week number for the timestamp.
 
@@ -236,7 +234,7 @@ def get_week_number(timestamp):
     return dt.year * 100 + dt.isocalendar()[1]
 
 
-def get_numeric_result(result_str):
+def _get_numeric_result(result_str):
     """
     Convert a test result status in to a number.
 
@@ -251,7 +249,7 @@ def get_numeric_result(result_str):
     return 0
 
 
-def make_numeric_results(builds):
+def _make_numeric_results(builds):
     """
     Return a numeric verion of the results in a DataFrame.
 
@@ -260,10 +258,10 @@ def make_numeric_results(builds):
     :return pandas.Series: the numeric result for each of
         the builds in the source frame.
     """
-    return builds['result'].map(get_numeric_result)
+    return builds['result'].map(_get_numeric_result)
 
 
-def make_week_numbers(builds):
+def _make_week_numbers(builds):
     """
     Return the week number for each of the timestamps in a DataFrame.
 
@@ -272,10 +270,10 @@ def make_week_numbers(builds):
     :return pandas.Series: the week number (as an int) for each of
         the builds in the source frame.
     """
-    return builds['timestamp'].map(get_week_number)
+    return builds['timestamp'].map(_get_week_number)
 
 
-def child_of(file_path, url_path):
+def _child_of(file_path, url_path):
     """Return a descendant of file_path."""
     return file_path.preauthChild(url_path)
 
@@ -288,10 +286,10 @@ def get_log_path(url):
     :return FilePath: the file path corresponding to a directory that
         may have the log files for that build.
     """
-    return child_of(BASE_DIR.child('logs'), url)
+    return _child_of(BASE_DIR.child('logs'), url)
 
 
-def classify(url):
+def _classify(url):
     """
     Classify the failure of a url.
 
@@ -308,33 +306,33 @@ def classify(url):
         path = get_log_path(url).child('consoleText')
         if path.exists():
             with path.open() as f:
-                return classify_build_log(f.read(), path)
+                return _classify_build_log(f.read(), path)
         else:
             return "Missing log"
 
 
-def test_case_name(case):
+def _test_case_name(case):
     return case['className'] + '.' + case['name']
 
 
-def test_case_failed(case):
+def _test_case_failed(case):
     return case['status'] not in (SKIPPED, PASSED, FIXED)
 
 
-def list_tests(test_report):
+def _list_tests(test_report):
     for suite in test_report['suites']:
         for case in suite['cases']:
             yield case
 
 
-def get_failing_tests(test_report):
-    return list(filter(test_case_failed, list_tests(test_report)))
+def _get_failing_tests(test_report):
+    return list(filter(_test_case_failed, _list_tests(test_report)))
 
 
 def analyze_failing_tests(build_data):
     """
     Given a DataFrame of build data, analyse which
-    individaul tests are failing the builds.
+    individual tests are failing the builds.
 
     :param pandas.DataFrame build_data: the build data to
         analyze.
@@ -345,14 +343,14 @@ def analyze_failing_tests(build_data):
 
     failing_cases = []
     for url in individual_failures['url']:
-        path = child_of(BASE_DIR.child('logs'), url).child('testReport')
+        path = _child_of(BASE_DIR.child('logs'), url).child('testReport')
         if path.exists():
             with path.open() as f:
                 tests = json.load(f)
-                failing_cases.extend(get_failing_tests(tests))
+                failing_cases.extend(_get_failing_tests(tests))
 
     failing_frame = pandas.DataFrame(failing_cases)
-    return failing_frame.assign(test_case_name=test_case_name)
+    return failing_frame.assign(test_case_name=_test_case_name)
 
 
 def get_classified_failures(build_data):
@@ -370,7 +368,7 @@ def get_classified_failures(build_data):
     """
     individual_failures = build_data[build_data['result'] == FAILURE]
 
-    classifications = individual_failures['url'].map(classify)
+    classifications = individual_failures['url'].map(_classify)
     individual_failures.insert(3, 'classification', classifications)
     return individual_failures
 
