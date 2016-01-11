@@ -1,8 +1,11 @@
 # Copyright (c) ClusterHQ Ltd. See LICENSE for details.
 
 import collections
+import datetime
 import json
 import os
+
+import numpy
 import pandas
 
 
@@ -171,9 +174,74 @@ def classify_build_log(log, path):
     return "Unknown"
 
 
+def get_week_number(timestamp):
+    """
+    Return a week number for the timestamp.
+
+    This combines the year and the week number so that
+    it can handle per-week processing of data that
+    spans multiple years.
+
+    :param datetime timestamp: The timestamp to convert
+        to a week number.
+    :return int: the week number.
+    """
+    dt = datetime.datetime.fromtimestamp(float(timestamp)/1000)
+    return dt.year * 100 + dt.isocalendar()[1]
+
+
+def get_numeric_result(result_str):
+    """
+    Convert a test result status in to a number.
+
+    :param str result_str: test result status
+        ("SUCCESS", "FAILED", etc.)
+    :return int: 100 if the test passed, 0 if it
+        failed. These mean of these values will
+        be the percentage of successful tests.
+    """
+    if result_str == SUCCESS:
+        return 100
+    return 0
+
+
+def make_numeric_results(builds):
+    """
+    Return a numeric verion of the results in a DataFrame.
+
+    :param pandas.DataFrame builds: a DataFrame with a 'result'
+        key that is the string result of a jenkins build.
+    :return pandas.Series: the numeric result for each of
+        the builds in the source frame.
+    """
+    return builds['result'].map(get_numeric_result)
+
+
+def make_week_numbers(builds):
+    """
+    Return the week number for each of the timestamps in a DataFrame.
+
+    :param pandas.DataFrame builds: a DataFrame with a 'timestamp'
+        key that is the jenkins timestamp of a build.
+    :return pandas.Series: the week number (as an int) for each of
+        the builds in the source frame.
+    """
+    return builds['timestamp'].map(get_week_number)
+
+
 def print_summary_results(builds):
     print "Top-level build results:"
     print summarize_build_results(builds)
+    df = pandas.DataFrame(builds).assign(
+        week_number=make_week_numbers,
+        numeric_result=make_numeric_results,
+    )
+    print df.groupby('week_number').agg(
+        {'numeric_result': {
+            'test runs': lambda x: x.count(),
+            'success percentage': numpy.mean
+        }}
+    )['numeric_result'].head()
 
 
 def print_top_failing_jobs(build_data):
@@ -266,9 +334,7 @@ def print_commonly_failing_tests(build_data):
                 failing_cases.extend(get_failing_tests(tests))
 
     failing_frame = pandas.DataFrame(failing_cases)
-    failing_frame['test_case_name'] = (
-        failing_frame['className'] + '.' + failing_frame['name']
-    )
+    failing_frame = failing_frame.assign(test_case_name=test_case_name)
 
     by_test_name = failing_frame.groupby('test_case_name')
 
