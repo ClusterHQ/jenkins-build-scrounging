@@ -257,7 +257,7 @@ def analyze_failing_tests(build_data):
 
     failing_cases = []
     for url in individual_failures['url']:
-        path = child_of(BASE_DIR.child('logs'), url).child('testReport')
+        path = get_log_path(url).child('testReport')
         if path.exists():
             with path.open() as f:
                 tests = json.load(f)
