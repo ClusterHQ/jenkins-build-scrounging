@@ -150,6 +150,10 @@ def _classify_build_log(log, path):
         return "[FLOC-?] failed to get key from keyserver"
     if 'gpgkeys: key 58118E89F3A912897C070ADBF76221572C52609D not found on keyserver' in log:
         return "[FLOC-?] failed to find key on keyserver"
+    if 'upload failed: ' in log and 'Unable to parse response ' in log and ' invalid XML received:' in log:
+        return "[FLOC-?] docs failed to upload to s3"
+    if 'git fetch --tags --progress https://github.com/ClusterHQ/flocker.git +refs/heads/*:refs/remotes/upstream/*\nERROR: timeout after 10 minutes' in log:
+        return "[FLOC-?] failed to fetch from github"
 
     # XXX: overly hacky and broad. Not caught by either the junit processing
     # check due to FLOC-3817, or by the trial failure message check because it is showing
