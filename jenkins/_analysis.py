@@ -9,7 +9,6 @@ import pandas
 
 
 from ._common import (
-    BASE_DIR,
     SUCCESS,
     FAILURE,
     PASSED,
@@ -160,11 +159,7 @@ def _classify_build_log(log, path):
     # the subunit
     if '\nerror: flocker.' in log:
         return "Failed Test"
-    print "====="
-    print "Unknown failure reason:"
-    print path.path
-    print "\n".join(log.splitlines())
-    print ""
+    print "Unknown failure reason:", path.path
     return "Unknown"
 
 
