@@ -109,6 +109,8 @@ def get_top_failing_jobs(build_data):
 
 
 def _classify_build_log(log, path):
+    if 'java.io.IOException: remote file operation failed:' in log:
+        return '[FLOC-4172] java.io.IOException: remote file operation failed'
     if 'NullPointerException' in log:
         return "[FLOC-3725] NullPointerException"
     if 'No matching distribution found for argparse==1.3.0' in log or 'pkg_resources.DistributionNotFound: The \'docutils>=0.10\'' in log:
