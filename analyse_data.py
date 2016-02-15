@@ -7,12 +7,13 @@ from datetime import datetime
 import json
 
 import dateutil
-
+import pandas
 
 from jenkins._common import BASE_DIR
 from jenkins._analysis import (
     analyze_failing_tests,
     get_classified_failures,
+    get_daily_classification_pivot,
     get_top_failing_jobs,
     group_by_classification,
     group_by_test_name,
@@ -79,6 +80,11 @@ def print_common_failure_reasons(build_data):
     print(group_by_classification(get_classified_failures(build_data)))
 
 
+def print_common_failure_daily(build_data):
+    print("Daily drill-down on failure classifications:")
+    print(get_daily_classification_pivot(get_classified_failures(build_data)))
+
+
 def print_commonly_failing_tests(build_data):
     print("Tests with the most failures")
     print(group_by_test_name(analyze_failing_tests(build_data)).head(20))
@@ -94,6 +100,10 @@ def main():
     )
     opts = parser.parse_args()
     builds = load_build_data(since=opts.since)
+
+    pandas.set_option('expand_frame_repr', False)
+    print("Showing data since: ", opts.since)
+    print("")
     print_summary_results(builds)
     print("")
     print("")
@@ -102,6 +112,9 @@ def main():
     print("")
     print("")
     print_common_failure_reasons(build_data)
+    print("")
+    print("")
+    print_common_failure_daily(build_data)
     print("")
     print("")
     print_commonly_failing_tests(build_data)
