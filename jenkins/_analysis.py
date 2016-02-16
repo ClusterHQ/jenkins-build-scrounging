@@ -60,7 +60,7 @@ def _flatten_build(build):
             'job': sub_build['jobName'],
             'result': sub_build['result'],
             'url': sub_build['url'],
-            'datetime': _get_datetime(build['timestamp'])
+            'datetime': get_datetime(build['timestamp'])
         }
 
 
@@ -175,6 +175,17 @@ def _classify_build_log(log, path):
     return "Unknown"
 
 
+def get_datetime(timestamp):
+    """
+    Return the datetime from a jenkins timestamp.
+
+    :param int timestamp: The timestamp to convert in ms since utc
+        to a datetime
+    :return datetime: The corresponding datetime.
+    """
+    return datetime.datetime.fromtimestamp(float(timestamp)/1000)
+
+
 def _get_week_number(timestamp):
     """
     Return a week number for the timestamp.
@@ -187,19 +198,8 @@ def _get_week_number(timestamp):
         to a week number.
     :return int: the week number.
     """
-    dt = datetime.datetime.fromtimestamp(float(timestamp)/1000)
+    dt = get_datetime(timestamp)
     return dt.year * 100 + dt.isocalendar()[1]
-
-
-def _get_datetime(timestamp):
-    """
-    Return the datetime from a jenkins timestamp.
-
-    :param int timestamp: The timestamp to convert in ms since utc
-        to a datetime
-    :return datetime: The corresponding datetime.
-    """
-    return datetime.datetime.fromtimestamp(float(timestamp)/1000)
 
 
 def _get_numeric_result(result_str):

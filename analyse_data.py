@@ -3,7 +3,6 @@
 from __future__ import print_function
 
 from argparse import ArgumentParser
-from datetime import datetime
 import json
 
 import dateutil
@@ -12,6 +11,7 @@ import pandas
 from jenkins._common import BASE_DIR
 from jenkins._analysis import (
     analyze_failing_tests,
+    get_datetime,
     get_classified_failures,
     get_daily_classification_pivot,
     get_top_failing_jobs,
@@ -37,7 +37,7 @@ def builds_since(builds, since):
         records in `builds` that are newer than `since`.
     """
     return filter(
-        lambda b: datetime.fromtimestamp(float(b['timestamp'])/1000) > since,
+        lambda b: get_datetime(b['timestamp']) > since,
         builds)
 
 
@@ -75,14 +75,14 @@ def print_top_failing_jobs(build_data):
     print(failing_jobs.head(20))
 
 
-def print_common_failure_reasons(build_data):
+def print_common_failure_reasons(classified_failure_data):
     print("Classification of failures")
-    print(group_by_classification(get_classified_failures(build_data)))
+    print(group_by_classification(classified_failure_data))
 
 
-def print_common_failure_daily(build_data):
+def print_common_failure_daily(classified_failure_data):
     print("Daily drill-down on failure classifications:")
-    print(get_daily_classification_pivot(get_classified_failures(build_data)))
+    print(get_daily_classification_pivot(classified_failure_data))
 
 
 def print_commonly_failing_tests(build_data):
@@ -111,10 +111,11 @@ def main():
     print_top_failing_jobs(build_data)
     print("")
     print("")
-    print_common_failure_reasons(build_data)
+    classified_failure_data = get_classified_failures(build_data)
+    print_common_failure_reasons(classified_failure_data)
     print("")
     print("")
-    print_common_failure_daily(build_data)
+    print_common_failure_daily(classified_failure_data)
     print("")
     print("")
     print_commonly_failing_tests(build_data)
