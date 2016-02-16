@@ -60,6 +60,7 @@ def _flatten_build(build):
             'job': sub_build['jobName'],
             'result': sub_build['result'],
             'url': sub_build['url'],
+            'datetime': get_datetime(build['timestamp'])
         }
 
 
@@ -155,6 +156,15 @@ def _classify_build_log(log, path):
         return "[FLOC-?] docs failed to upload to s3"
     if 'git fetch --tags --progress https://github.com/ClusterHQ/flocker.git +refs/heads/*:refs/remotes/upstream/*\nERROR: timeout after 10 minutes' in log:
         return "[FLOC-?] failed to fetch from github"
+    if ("ReadTimeoutError: HTTPConnectionPool(host='devpi.clusterhq.com', "
+            "port=3141): Read timed out." in log):
+        return "[FLOC-?] devpi.clusterhq.com down"
+    if ("No matching distribution found for effect==0.1a13 "
+            "(from -r /tmp/requirements.txt (line 6))" in log):
+        return "[FLOC-?] Pip failure in docker build."
+    if ("Could not resolve host: github.com" in log or
+            "curl: (6) Could not resolve host: api.github.com" in log):
+        return "[FLOC-?] Network to github down."
 
     # XXX: overly hacky and broad. Not caught by either the junit processing
     # check due to FLOC-3817, or by the trial failure message check because it is showing
@@ -163,6 +173,17 @@ def _classify_build_log(log, path):
         return "Failed Test"
     print "Unknown failure reason:", path.path
     return "Unknown"
+
+
+def get_datetime(timestamp):
+    """
+    Return the datetime from a jenkins timestamp.
+
+    :param int timestamp: The timestamp to convert in ms since utc
+        to a datetime
+    :return datetime: The corresponding datetime.
+    """
+    return datetime.datetime.fromtimestamp(float(timestamp)/1000)
 
 
 def _get_week_number(timestamp):
@@ -177,7 +198,7 @@ def _get_week_number(timestamp):
         to a week number.
     :return int: the week number.
     """
-    dt = datetime.datetime.fromtimestamp(float(timestamp)/1000)
+    dt = get_datetime(timestamp)
     return dt.year * 100 + dt.isocalendar()[1]
 
 
@@ -302,6 +323,27 @@ def group_by_classification(failures):
     """
     return failures.groupby('classification').size().sort_values(
         ascending=False)
+
+
+def get_daily_classification_pivot(failures):
+    """
+    Given a DataFrame of classified failures, group the frame by classification
+    and day to produce a table that shows the daily occurances of each of the
+    types of failures.
+
+    :param pandas.DataFrame failures: the DataFrame with classified failures.
+    :return pandas.DataFrame: A pandas.DataFrame pivot table with rows for each
+        type of failure and columns for each day of data. This can be scanned
+        to see if a failure has gone away, or has re-emerged in recent days.
+    """
+    return pandas.pivot_table(
+        failures,
+        index='classification',
+        columns=pandas.Grouper(key='datetime', freq='D', sort=True),
+        values='url',
+        aggfunc='count',
+        fill_value=0
+    )
 
 
 def group_by_test_name(failures):
