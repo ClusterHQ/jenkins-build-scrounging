@@ -7,10 +7,12 @@ import json
 
 import dateutil
 import pandas
+import numpy
 
 from jenkins._common import BASE_DIR
 from jenkins._analysis import (
     analyze_failing_tests,
+    get_daily_time_to_merge,
     get_datetime,
     get_classified_failures,
     get_daily_classification_pivot,
@@ -90,6 +92,11 @@ def print_commonly_failing_tests(build_data):
     print(group_by_test_name(analyze_failing_tests(build_data)).head(20))
 
 
+def print_daily_time_to_merge(build_data):
+    print("Approximation of time-to-merge across days:")
+    print(get_daily_time_to_merge(build_data))
+
+
 def main():
     parser = ArgumentParser(
         'analyse_data.py', description="Analyze Jenkins build logs"
@@ -119,6 +126,9 @@ def main():
     print("")
     print("")
     print_commonly_failing_tests(build_data)
+    print("")
+    print("")
+    print_daily_time_to_merge(build_data)
 
 
 if __name__ == '__main__':

@@ -52,6 +52,35 @@ def summarize_weekly_stats(builds):
     )['numeric_result']
 
 
+def _parse_duration(duration):
+    """
+    Parses a duration from jenkins into a python timedelta. Note that jenkins
+    gives durations in two different forms. Sometimes durations are specified
+    in a human-readable-ish format like "12 hr 20 min 14 sec", and sometimes it
+    is specified as an integer of milliseconds. This function handles both.
+
+    :param unicode duration: A duration from jenkins.
+    :returns: A python timedelta representing the duration.
+    """
+    if type(duration) == int:
+        return datetime.timedelta(milliseconds=duration)
+
+    result = datetime.timedelta()
+    remainder = duration
+
+    # Be sure to order the following from largest to smallest. Jenkins orders
+    # them from largest to smallest similar to natural language.
+    for jenkins_keyword, timedelta_kwarg in [
+        ('hr', 'hours'),
+        ('min', 'minutes'),
+        ('sec', 'seconds')
+    ]:
+        if jenkins_keyword in remainder:
+            value, remainder = remainder.split(jenkins_keyword)
+            result += datetime.timedelta(**{timedelta_kwarg: float(value)})
+    return result
+
+
 def _flatten_build(build):
     for sub_build in build['subBuilds']:
         yield {
@@ -60,7 +89,9 @@ def _flatten_build(build):
             'job': sub_build['jobName'],
             'result': sub_build['result'],
             'url': sub_build['url'],
-            'datetime': get_datetime(build['timestamp'])
+            'datetime': get_datetime(build['timestamp']),
+            'sub_duration': _parse_duration(sub_build['duration']),
+            'duration': _parse_duration(build['duration'])
         }
 
 
@@ -307,6 +338,102 @@ def get_classified_failures(build_data):
     classifications = individual_failures['url'].map(_classify)
     individual_failures.insert(3, 'classification', classifications)
     return individual_failures
+
+
+def get_time_to_success(build_data):
+    """
+    Attempts to approximate how much time it would take each of the sub-builds
+    to reach an outcome conducive with merging a PR. This is an approximation
+    from the time that __main_multijob is originally pressed, until the
+    sub-build has been successfully concluded after retries.
+
+    As a baseline we take the duration of __main_multijob. An engineer should
+    not merge a branch in ideal conditions until __main_multijob is concluded.
+
+    If a job fails, we add to the time of __main_multijob the amount of time of
+    the next run of the same job. In the worst case a job fails and it was the
+    last job to run in __main_multijob. This approximates immediately hitting
+    retry on the failed job in that scenario. This is repeated until we get a
+    to a successful run of the job.
+
+    Note that if the most recent job is a failure, then this column will have
+    NaT in this column.
+
+    :param build_data: A DataFrame representing the individual builds of the
+        test jobs.
+    :returns: A DataFrame that has all of the original columns plus an
+        additional column named "duration_until_mergable" that contains the
+        amount of time from the start of __main_multijob until this sub-build
+        has been retried until success, assuming this was the final job in the
+        __main_multijob build.
+    """
+    grouped = build_data.groupby('job')
+    new_columns = None
+    for name, group in grouped:
+        last = None
+        group_rows = []
+        for row in group.sort_values(by='datetime',
+                                     ascending=False).itertuples():
+            new = {
+                "index": row.Index,
+                "time_to_success": row.sub_duration,
+                "duration_until_mergable": row.duration
+            }
+            if row.result != SUCCESS:
+                if last:
+                    new['time_to_success'] += last["time_to_success"]
+                    new['duration_until_mergable'] += (
+                        last["time_to_success"])
+                else:
+                    new['time_to_success'] = numpy.nan
+                    new['duration_until_mergable'] = numpy.nan
+            last = new
+            group_rows.append(new)
+        new_rows = pandas.DataFrame.from_records(
+            group_rows, index=['index'], exclude=['time_to_success'])
+        if new_columns is None:
+            new_columns = new_rows
+        else:
+            new_columns = new_columns.append(new_rows)
+    result = build_data.join(new_columns)
+    return result
+
+
+def get_daily_time_to_merge(build_data):
+    """
+    Construct a DataFrame that returns a per-day approximation of the amount of
+    time between CI starting and all builds going green. This is an attempt at
+    approximating time to merge.
+
+    :param build_data: A DataFrame with the per-subbuild information.
+    :returns: A DataFrame with one row for each day the data occurred during,
+        and has values that are the average approximated time to submit for
+        that day.
+    """
+    build_data_with_durations = get_time_to_success(build_data)
+
+    def max_preserving_NaTs(x):
+        if any(x.isnull()):
+            return pandas.NaT
+        return numpy.max(x)
+
+    per_build_durations = (
+        build_data_with_durations[['number',
+                                   'datetime',
+                                   'duration_until_mergable']]
+        .groupby('number')
+        .aggregate(max_preserving_NaTs))
+
+    def avg_perserving_NaTs(x):
+        if len(x) == 0:
+            return "No data"
+        if any(x.isnull()):
+            return pandas.NaT
+        return numpy.mean(x)
+
+    return per_build_durations.groupby(
+            pandas.Grouper(key='datetime', freq='D', sort=True),
+    )['duration_until_mergable'].aggregate(avg_perserving_NaTs)
 
 
 def group_by_classification(failures):
